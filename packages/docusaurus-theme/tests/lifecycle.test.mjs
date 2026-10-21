@@ -43,6 +43,7 @@ test("setGlobalData: klucze storage per tenant, apiBaseUrl bez końcowego slasha
   assert.equal(captured.apiBaseUrl, "https://ask.example.com");
   assert.deepEqual(captured.storageKeys, { snapshot: "docs-chat:ezd:v2", clientId: "docs-chat:ezd:client" });
   assert.equal(captured.assistantName, "e-Doradca");
+  assert.equal(captured.tenant, "ezd");
 });
 
 test("skrypt pre-hydracyjny zna każdy tryb panelu poza collapsed i nie zawiera '</'", () => {
@@ -56,6 +57,31 @@ test("skrypt pre-hydracyjny zna każdy tryb panelu poza collapsed i nie zawiera 
   assert.ok(!script.includes("</"), "sekwencja '</' w inline script może zamknąć tag");
   // jedno źródło wzorca id wdrożenia: literał w skrypcie == CLIENT_ID_PATTERN klienta
   assert.ok(script.includes(`/${CLIENT_ID_PATTERN.source}/`), "regex ?r= w skrypcie rozjechał się z CLIENT_ID_PATTERN");
+});
+
+test("tenantless (API 2.0+): tenant opcjonalny, klucze storage po hoście strony z siteConfig.url", () => {
+  const validated = validateOptions({ options: { apiBaseUrl: "https://ask.example.com/", assistantName: "Asystent" }, validate });
+  assert.equal(validated.tenant, null);
+  let captured = null;
+  const theme = themeDocsChat(
+    { i18n: { currentLocale: "pl" }, siteConfig: { url: "https://docs.example.com/" } },
+    validated
+  );
+  theme.contentLoaded({ actions: { setGlobalData: (data) => (captured = data) } });
+  assert.equal(captured.tenant, null);
+  assert.deepEqual(captured.storageKeys, {
+    snapshot: "docs-chat:docs.example.com:v2",
+    clientId: "docs-chat:docs.example.com:client",
+  });
+  // bez siteConfig.url (np. testy) — fallback "default"; zły URL nie przewala buildu
+  const noUrl = themeDocsChat({ i18n: { currentLocale: "pl" } }, validated);
+  let fallback = null;
+  noUrl.contentLoaded({ actions: { setGlobalData: (data) => (fallback = data) } });
+  assert.deepEqual(fallback.storageKeys, { snapshot: "docs-chat:default:v2", clientId: "docs-chat:default:client" });
+  const badUrl = themeDocsChat({ i18n: { currentLocale: "pl" }, siteConfig: { url: "::bad::" } }, validated);
+  let rescued = null;
+  badUrl.contentLoaded({ actions: { setGlobalData: (data) => (rescued = data) } });
+  assert.deepEqual(rescued.storageKeys, { snapshot: "docs-chat:default:v2", clientId: "docs-chat:default:client" });
 });
 
 test("enabled: false wyłącza headTags", () => {

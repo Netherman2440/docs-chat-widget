@@ -8,3 +8,6 @@ coverage/
 .docusaurus/
 fixtures/site/build/
 types/
+
+# build output docusaurusa (fixture garden-site)
+fixtures/garden-site/build/

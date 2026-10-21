@@ -32,10 +32,13 @@ const optionsSchema = Joi.object({
       return value;
     })
     .required(),
-  // id tenanta w API (/api/v1/<tenant>/…)
+  // id tenanta w API — OPCJONALNY od 0.4: bez tenanta widget mówi z API docs-chat 2.0+
+  // (ścieżki /api/v1/chat|feedback|status — jedna instancja = jeden tenant); z tenantem zostaje
+  // stary kształt /api/v1/<tenant>/… (starsze backendy)
   tenant: Joi.string()
     .pattern(/^[a-z0-9][a-z0-9-]{1,31}$/)
-    .required(),
+    .allow(null)
+    .default(null),
   // nazwa asystenta: tytuł panelu i przycisk w navbarze (mianownik, np. "e-Doradca")
   assistantName: Joi.string().max(60).required(),
   // 3 podpowiedzi w pustym panelu (mniej/więcej też zadziała)
@@ -65,16 +68,28 @@ const optionsSchema = Joi.object({
     .default(null),
 });
 
-/** klucze sessionStorage per tenant (dwa buildy na jednym originie nie kolidują) */
-function storageKeys(tenant) {
+/**
+ * Klucze sessionStorage per tenant (dwa buildy na jednym originie nie kolidują).
+ * Bez tenanta (API 2.0+) tożsamością wdrożenia jest origin strony — kluczem jest host
+ * z siteConfig.url; gdy context go nie ma (np. testy), fallback "default".
+ */
+function storageKeys(tenant, siteUrl) {
+  let scope = tenant;
+  if (!scope) {
+    try {
+      scope = siteUrl ? new URL(siteUrl).host : "default";
+    } catch {
+      scope = "default";
+    }
+  }
   return {
-    snapshot: `docs-chat:${tenant}:v2`,
-    clientId: `docs-chat:${tenant}:client`,
+    snapshot: `docs-chat:${scope}:v2`,
+    clientId: `docs-chat:${scope}:client`,
   };
 }
 
 module.exports = function themeDocsChat(context, options) {
-  const keys = storageKeys(options.tenant);
+  const keys = storageKeys(options.tenant, context?.siteConfig?.url);
   const publicOptions = {
     apiBaseUrl: options.apiBaseUrl.replace(/\/+$/, ""),
     tenant: options.tenant,
